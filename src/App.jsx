@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import PatientCard from './components/PatientCard';
 import PatientTableView from './components/PatientTableView';
@@ -6,7 +6,6 @@ import DoctorManager from './components/DoctorManager';
 import CensoImportModal from './components/CensoImportModal';
 import PrintCensoView from './components/PrintCensoView';
 import AllocationExplainModal from './components/AllocationExplainModal';
-import SupabaseConfigModal from './components/SupabaseConfigModal';
 
 import { 
   INITIAL_DOCTORS, 
@@ -18,11 +17,10 @@ import {
 import { runAllocationEngine } from './logic/allocationEngine';
 import { CloudStorageService } from './logic/cloudDb';
 import { 
-  fetchCensoFromCloud, 
-  saveCensoToCloud, 
-  subscribeToCloudCenso, 
-  isSupabaseConfigured 
-} from './logic/supabaseClient';
+  fetchCensoFromGitHub, 
+  saveCensoToGitHub, 
+  startGitHubAutoSync 
+} from './logic/githubSync';
 
 import { Plus, Sparkles, Building2, Stethoscope, UserCheck, Coffee, Check } from 'lucide-react';
 
@@ -30,6 +28,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [isWeekend, setIsWeekend] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' (padrão) | 'grid'
+  const [syncStatus, setSyncStatus] = useState('synced'); // 'synced' | 'syncing' | 'offline'
 
   // Estados principais
   const [doctors, setDoctors] = useState(() => CloudStorageService.loadDoctors(INITIAL_DOCTORS));
@@ -42,12 +41,14 @@ export default function App() {
   const [explanations, setExplanations] = useState({});
   const [pixCopied, setPixCopied] = useState(false);
 
+  // Ref para evitar loops entre salvamento e evento remoto
+  const isUpdatingFromRemote = useRef(false);
+
   // Modais
   const [isDoctorManagerOpen, setIsDoctorManagerOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
   const [isExplainModalOpen, setIsExplainModalOpen] = useState(false);
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
 
   // Estado para inclusão rápida
   const [newBed, setNewBed] = useState('');
@@ -64,49 +65,38 @@ export default function App() {
     }
   }, [selectedDate]);
 
-  // Carregar e Escutar Sincronização em Tempo Real do Supabase para a data selecionada
+  // Escuta/Polling automático de sincronização nativa via GitHub
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-
-    let isMounted = true;
-
-    // Buscar censo inicial na nuvem
-    fetchCensoFromCloud(selectedDate).then(cloudPayload => {
-      if (isMounted && cloudPayload) {
-        if (cloudPayload.patients) setPatients(cloudPayload.patients);
-        if (cloudPayload.weekdaySlots) setWeekdaySlots(cloudPayload.weekdaySlots);
-        if (cloudPayload.weekendSlots) setWeekendSlots(cloudPayload.weekendSlots);
-        if (cloudPayload.doctors) setDoctors(cloudPayload.doctors);
-      }
-    });
-
-    // Escutar atualizações remotas enviadas por outros computadores/celulares
-    const unsubscribe = subscribeToCloudCenso(selectedDate, (remotePayload) => {
+    const stopSync = startGitHubAutoSync(selectedDate, (remotePayload) => {
       if (remotePayload) {
+        isUpdatingFromRemote.current = true;
         if (remotePayload.patients) setPatients(remotePayload.patients);
         if (remotePayload.weekdaySlots) setWeekdaySlots(remotePayload.weekdaySlots);
         if (remotePayload.weekendSlots) setWeekendSlots(remotePayload.weekendSlots);
         if (remotePayload.doctors) setDoctors(remotePayload.doctors);
+        setTimeout(() => {
+          isUpdatingFromRemote.current = false;
+        }, 300);
       }
-    });
+    }, 4000);
 
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
+    return () => stopSync();
   }, [selectedDate]);
 
-  // Salvar no LocalStorage e sincronizar com Supabase
+  // Salvar no LocalStorage e sincronizar com o repositório GitHub
   useEffect(() => {
     CloudStorageService.saveDoctors(doctors);
     CloudStorageService.savePatients(patients);
 
-    if (isSupabaseConfigured) {
-      saveCensoToCloud(selectedDate, {
+    if (!isUpdatingFromRemote.current) {
+      setSyncStatus('syncing');
+      saveCensoToGitHub(selectedDate, {
         patients,
         weekdaySlots,
         weekendSlots,
         doctors
+      }).then(() => {
+        setSyncStatus('synced');
       });
     }
   }, [patients, doctors, weekdaySlots, weekendSlots, selectedDate]);
@@ -298,7 +288,7 @@ export default function App() {
           onOpenPrintView={() => setIsPrintViewOpen(true)}
           onOpenExplainModal={() => setIsExplainModalOpen(true)}
           onResetDemo={handleResetDemo}
-          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+          syncStatus={syncStatus}
         />
 
         <main id="app-main-content" className="flex-1 space-y-6">
@@ -571,11 +561,6 @@ export default function App() {
         explanations={explanations}
         patients={patients}
         doctors={doctors}
-      />
-
-      <SupabaseConfigModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
       />
     </div>
   );

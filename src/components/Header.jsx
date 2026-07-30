@@ -11,9 +11,8 @@ import {
   Building2,
   Table,
   LayoutGrid,
-  Database
+  GitBranch
 } from 'lucide-react';
-import { isSupabaseConfigured } from '../logic/supabaseClient';
 
 export default function Header({ 
   selectedDate, 
@@ -29,7 +28,7 @@ export default function Header({
   onOpenPrintView, 
   onOpenExplainModal,
   onResetDemo,
-  onOpenSupabaseModal
+  syncStatus
 }) {
   return (
     <header className="mb-6 pb-6 border-b border-slate-200 flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -49,20 +48,23 @@ export default function Header({
       </div>
 
       <div className="flex flex-col gap-3 shrink-0">
-        {/* Row 1: Date & Cloud Connection Status & View Mode */}
+        {/* Row 1: GitHub Sync Status, Date & View Mode */}
         <div className="flex flex-wrap items-center gap-2 justify-end">
-          <button
-            onClick={onOpenSupabaseModal}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-2xs text-xs font-semibold transition-colors ${
-              isSupabaseConfigured
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border shadow-2xs text-xs font-semibold ${
+              syncStatus === 'synced'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : syncStatus === 'syncing'
+                ? 'bg-blue-50 text-blue-800 border-blue-200 animate-pulse'
+                : 'bg-slate-100 text-slate-700 border-slate-200'
             }`}
-            title="Sincronização entre múltiplos computadores"
+            title="Sincronização em tempo real via repositório GitHub"
           >
-            <Database size={14} className={isSupabaseConfigured ? "text-emerald-600" : "text-amber-600"} />
-            {isSupabaseConfigured ? '🟢 Nuvem Ativa (Supabase)' : '🟡 Conectar Nuvem'}
-          </button>
+            <GitBranch size={14} className="text-blue-600" />
+            <span>
+              {syncStatus === 'synced' ? '🟢 GitHub Nuvem Ativo' : syncStatus === 'syncing' ? '🔄 Sincronizando...' : '🐙 GitHub Sync'}
+            </span>
+          </div>
 
           <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs text-sm font-medium text-slate-700">
             <Calendar size={16} className="text-blue-600" />
