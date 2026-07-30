@@ -6,15 +6,24 @@ import DoctorManager from './components/DoctorManager';
 import CensoImportModal from './components/CensoImportModal';
 import PrintCensoView from './components/PrintCensoView';
 import AllocationExplainModal from './components/AllocationExplainModal';
+import SupabaseConfigModal from './components/SupabaseConfigModal';
 
 import { 
   INITIAL_DOCTORS, 
   INITIAL_PATIENTS, 
+  DEMO_PATIENTS_MODEL,
   DEFAULT_WEEKDAY_SLOTS, 
   DEFAULT_WEEKEND_SLOTS 
 } from './constants/initialData';
 import { runAllocationEngine } from './logic/allocationEngine';
 import { CloudStorageService } from './logic/cloudDb';
+import { 
+  fetchCensoFromCloud, 
+  saveCensoToCloud, 
+  subscribeToCloudCenso, 
+  isSupabaseConfigured 
+} from './logic/supabaseClient';
+
 import { Plus, Sparkles, Building2, Stethoscope, UserCheck, Coffee, Check } from 'lucide-react';
 
 export default function App() {
@@ -38,6 +47,7 @@ export default function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
   const [isExplainModalOpen, setIsExplainModalOpen] = useState(false);
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
 
   // Estado para inclusão rápida
   const [newBed, setNewBed] = useState('');
@@ -54,13 +64,52 @@ export default function App() {
     }
   }, [selectedDate]);
 
+  // Carregar e Escutar Sincronização em Tempo Real do Supabase para a data selecionada
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    let isMounted = true;
+
+    // Buscar censo inicial na nuvem
+    fetchCensoFromCloud(selectedDate).then(cloudPayload => {
+      if (isMounted && cloudPayload) {
+        if (cloudPayload.patients) setPatients(cloudPayload.patients);
+        if (cloudPayload.weekdaySlots) setWeekdaySlots(cloudPayload.weekdaySlots);
+        if (cloudPayload.weekendSlots) setWeekendSlots(cloudPayload.weekendSlots);
+        if (cloudPayload.doctors) setDoctors(cloudPayload.doctors);
+      }
+    });
+
+    // Escutar atualizações remotas enviadas por outros computadores/celulares
+    const unsubscribe = subscribeToCloudCenso(selectedDate, (remotePayload) => {
+      if (remotePayload) {
+        if (remotePayload.patients) setPatients(remotePayload.patients);
+        if (remotePayload.weekdaySlots) setWeekdaySlots(remotePayload.weekdaySlots);
+        if (remotePayload.weekendSlots) setWeekendSlots(remotePayload.weekendSlots);
+        if (remotePayload.doctors) setDoctors(remotePayload.doctors);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [selectedDate]);
+
+  // Salvar no LocalStorage e sincronizar com Supabase
   useEffect(() => {
     CloudStorageService.saveDoctors(doctors);
-  }, [doctors]);
-
-  useEffect(() => {
     CloudStorageService.savePatients(patients);
-  }, [patients]);
+
+    if (isSupabaseConfigured) {
+      saveCensoToCloud(selectedDate, {
+        patients,
+        weekdaySlots,
+        weekendSlots,
+        doctors
+      });
+    }
+  }, [patients, doctors, weekdaySlots, weekendSlots, selectedDate]);
 
   const handleUpdateSlot = (slotKey, doctorId) => {
     if (isWeekend) {
@@ -174,11 +223,11 @@ export default function App() {
   };
 
   const handleResetDemo = () => {
-    if (window.confirm('Deseja restaurar o Censo Padrão idêntico ao modelo da foto enviada?')) {
+    if (window.confirm('Deseja carregar a demonstração com os leitos preenchidos da foto?')) {
       setDoctors(INITIAL_DOCTORS);
       setWeekdaySlots(DEFAULT_WEEKDAY_SLOTS);
       setWeekendSlots(DEFAULT_WEEKEND_SLOTS);
-      setPatients(INITIAL_PATIENTS);
+      setPatients(DEMO_PATIENTS_MODEL);
     }
   };
 
@@ -249,6 +298,7 @@ export default function App() {
           onOpenPrintView={() => setIsPrintViewOpen(true)}
           onOpenExplainModal={() => setIsExplainModalOpen(true)}
           onResetDemo={handleResetDemo}
+          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         />
 
         <main id="app-main-content" className="flex-1 space-y-6">
@@ -346,7 +396,11 @@ export default function App() {
             </div>
 
             <div className="p-4">
-              {viewMode === 'table' ? (
+              {patients3B.length === 0 ? (
+                <div className="py-8 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400">
+                  Nenhum paciente no 3°B. Importe o censo via PDF/foto ou use a Inclusão Rápida acima.
+                </div>
+              ) : viewMode === 'table' ? (
                 <PatientTableView
                   patients={patients3B}
                   doctors={doctors}
@@ -389,7 +443,11 @@ export default function App() {
             </div>
 
             <div className="p-4">
-              {viewMode === 'table' ? (
+              {patients2B.length === 0 ? (
+                <div className="py-8 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400">
+                  Nenhum paciente no 2°B.
+                </div>
+              ) : viewMode === 'table' ? (
                 <PatientTableView
                   patients={patients2B}
                   doctors={doctors}
@@ -428,22 +486,30 @@ export default function App() {
               </h2>
             </div>
 
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-              {patientsColono.map((patient) => (
-                <div key={patient.id} className="bg-purple-50/50 border border-purple-200 rounded-xl p-3.5 flex items-center justify-between">
-                  <div>
-                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
-                      {patient.bed}
-                    </span>
-                    <h4 className="font-semibold text-slate-800 text-sm uppercase mt-1">
-                      {patient.name}
-                    </h4>
-                  </div>
-                  <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-md">
-                    Exame Agendado
-                  </span>
+            <div className="p-4">
+              {patientsColono.length === 0 ? (
+                <div className="py-6 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400">
+                  Nenhuma colonoscopia agendada para hoje.
                 </div>
-              ))}
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                  {patientsColono.map((patient) => (
+                    <div key={patient.id} className="bg-purple-50/50 border border-purple-200 rounded-xl p-3.5 flex items-center justify-between">
+                      <div>
+                        <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                          {patient.bed}
+                        </span>
+                        <h4 className="font-semibold text-slate-800 text-sm uppercase mt-1">
+                          {patient.name}
+                        </h4>
+                      </div>
+                      <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-md">
+                        Exame Agendado
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </main>
@@ -505,6 +571,11 @@ export default function App() {
         explanations={explanations}
         patients={patients}
         doctors={doctors}
+      />
+
+      <SupabaseConfigModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
       />
     </div>
   );
