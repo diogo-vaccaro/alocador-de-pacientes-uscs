@@ -6,6 +6,7 @@ import DoctorManager from './components/DoctorManager';
 import CensoImportModal from './components/CensoImportModal';
 import PrintCensoView from './components/PrintCensoView';
 import AllocationExplainModal from './components/AllocationExplainModal';
+import HistoryModal from './components/HistoryModal';
 
 import { 
   INITIAL_DOCTORS, 
@@ -17,7 +18,6 @@ import {
 import { runAllocationEngine } from './logic/allocationEngine';
 import { CloudStorageService } from './logic/cloudDb';
 import { 
-  fetchCensoFromGitHub, 
   saveCensoToGitHub, 
   startGitHubAutoSync 
 } from './logic/githubSync';
@@ -33,6 +33,7 @@ export default function App() {
   // Estados principais
   const [doctors, setDoctors] = useState(() => CloudStorageService.loadDoctors(INITIAL_DOCTORS));
   const [patients, setPatients] = useState(() => CloudStorageService.loadPatients(INITIAL_PATIENTS));
+  const [historyMap, setHistoryMap] = useState(() => CloudStorageService.loadHistory());
   
   // Escala por Vagas
   const [weekdaySlots, setWeekdaySlots] = useState(DEFAULT_WEEKDAY_SLOTS);
@@ -49,6 +50,7 @@ export default function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPrintViewOpen, setIsPrintViewOpen] = useState(false);
   const [isExplainModalOpen, setIsExplainModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   // Estado para inclusão rápida
   const [newBed, setNewBed] = useState('');
@@ -74,6 +76,7 @@ export default function App() {
         if (remotePayload.weekdaySlots) setWeekdaySlots(remotePayload.weekdaySlots);
         if (remotePayload.weekendSlots) setWeekendSlots(remotePayload.weekendSlots);
         if (remotePayload.doctors) setDoctors(remotePayload.doctors);
+        if (remotePayload.historyMap) setHistoryMap(remotePayload.historyMap);
         setTimeout(() => {
           isUpdatingFromRemote.current = false;
         }, 300);
@@ -94,12 +97,13 @@ export default function App() {
         patients,
         weekdaySlots,
         weekendSlots,
-        doctors
+        doctors,
+        historyMap
       }).then(() => {
         setSyncStatus('synced');
       });
     }
-  }, [patients, doctors, weekdaySlots, weekendSlots, selectedDate]);
+  }, [patients, doctors, weekdaySlots, weekendSlots, historyMap, selectedDate]);
 
   const handleUpdateSlot = (slotKey, doctorId) => {
     if (isWeekend) {
@@ -156,6 +160,27 @@ export default function App() {
     setDoctors(prev => [...prev, newDoc]);
   };
 
+  const handleDeleteDoctor = (docId) => {
+    // Remover médico da lista
+    setDoctors(prev => prev.filter(d => d.id !== docId));
+
+    // Limpar médico das vagas ativas da escala
+    const cleanSlots = (slots) => {
+      const updated = { ...slots };
+      Object.keys(updated).forEach(key => {
+        if (key === 'residentes') {
+          updated.residentes = (updated.residentes || []).filter(id => id !== docId);
+        } else if (updated[key] === docId) {
+          updated[key] = '';
+        }
+      });
+      return updated;
+    };
+
+    setWeekdaySlots(prev => cleanSlots(prev));
+    setWeekendSlots(prev => cleanSlots(prev));
+  };
+
   const handleApplyPreset = (type) => {
     if (type === 'weekday') {
       setWeekdaySlots(DEFAULT_WEEKDAY_SLOTS);
@@ -167,7 +192,6 @@ export default function App() {
   };
 
   const handleRunAllocation = () => {
-    const historyMap = CloudStorageService.loadHistory();
     const { allocatedPatients, explanations: newExplanations } = runAllocationEngine({
       patients,
       activeShiftDoctors,
@@ -178,10 +202,19 @@ export default function App() {
 
     setPatients(allocatedPatients);
     setExplanations(newExplanations);
+
+    // Atualizar o mapa do histórico completo
+    CloudStorageService.updateHistory(allocatedPatients);
+    setHistoryMap(CloudStorageService.loadHistory());
   };
 
   const handleUpdatePatient = (patientId, updates) => {
-    setPatients(prev => prev.map(p => p.id === patientId ? { ...p, ...updates } : p));
+    setPatients(prev => {
+      const updatedList = prev.map(p => p.id === patientId ? { ...p, ...updates } : p);
+      CloudStorageService.updateHistory(updatedList);
+      setHistoryMap(CloudStorageService.loadHistory());
+      return updatedList;
+    });
   };
 
   const handleImportPatients = (importedList) => {
@@ -287,6 +320,7 @@ export default function App() {
           onRunAllocation={handleRunAllocation}
           onOpenPrintView={() => setIsPrintViewOpen(true)}
           onOpenExplainModal={() => setIsExplainModalOpen(true)}
+          onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
           onResetDemo={handleResetDemo}
           syncStatus={syncStatus}
         />
@@ -302,7 +336,7 @@ export default function App() {
               </h2>
               <button
                 onClick={() => setIsExplainModalOpen(true)}
-                className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
               >
                 <Sparkles size={14} className="text-amber-500" /> Ver Justificativas do Motor
               </button>
@@ -358,7 +392,7 @@ export default function App() {
               <select
                 value={newSector}
                 onChange={(e) => setNewSector(e.target.value)}
-                className="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 <option value="3B">3°B (Enfermaria Clínica)</option>
                 <option value="2B">2°B (Enfermaria)</option>
@@ -366,7 +400,7 @@ export default function App() {
               </select>
               <button
                 type="submit"
-                className="w-full sm:w-auto px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1.5"
+                className="w-full sm:w-auto px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Plus size={16} /> Adicionar
               </button>
@@ -532,6 +566,7 @@ export default function App() {
         isOpen={isDoctorManagerOpen}
         onClose={() => setIsDoctorManagerOpen(false)}
         doctors={doctors}
+        onDeleteDoctor={handleDeleteDoctor}
         shiftSlots={currentSlots}
         onUpdateSlot={handleUpdateSlot}
         onToggleResidentInShift={handleToggleResidentInShift}
@@ -560,6 +595,13 @@ export default function App() {
         onClose={() => setIsExplainModalOpen(false)}
         explanations={explanations}
         patients={patients}
+        doctors={doctors}
+      />
+
+      <HistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        historyMap={historyMap}
         doctors={doctors}
       />
     </div>

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { DOCTOR_TAGS } from '../constants/initialData';
-import { UserPlus, Calendar, Sun, Users, Check } from 'lucide-react';
+import { UserPlus, Calendar, Sun, Users, Check, Trash2 } from 'lucide-react';
 
 export default function DoctorManager({ 
   doctors, 
+  onDeleteDoctor,
   shiftSlots, 
   onUpdateSlot, 
   onToggleResidentInShift,
@@ -15,6 +16,7 @@ export default function DoctorManager({
 }) {
   const [newDocName, setNewDocName] = useState('');
   const [newDocTag, setNewDocTag] = useState('plantonista');
+  const [showDeleteList, setShowDeleteList] = useState(false);
 
   if (!isOpen) return null;
 
@@ -34,17 +36,17 @@ export default function DoctorManager({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="bg-slate-100/70 border-b border-slate-200 px-5 py-4 flex justify-between items-center">
           <div>
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Users size={20} className="text-blue-600" />
-              Escala de Plantão — Preenchimento por Vagas
+              Escala de Plantão & Cadastro de Médicos
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Defina qual médico ocupará cada vaga da equipe no plantão de hoje
+              Defina as vagas do dia e gerencie os médicos cadastrados no sistema
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">
@@ -347,19 +349,60 @@ export default function DoctorManager({
               </select>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1.5"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <UserPlus size={16} /> Cadastrar
               </button>
             </div>
           </form>
+
+          {/* GERENCIAR / DESCADASTRAR MÉDICOS */}
+          <div className="pt-4 border-t border-slate-200">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Trash2 size={15} className="text-rose-600" /> Gerenciar / Descadastrar Médicos
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowDeleteList(!showDeleteList)}
+                className="text-xs text-blue-600 hover:underline font-semibold"
+              >
+                {showDeleteList ? 'Ocultar Lista' : 'Exibir Lista para Remover'}
+              </button>
+            </div>
+
+            {showDeleteList && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                {doctors.map(doc => (
+                  <div key={doc.id} className="flex justify-between items-center py-1.5 px-3 bg-white rounded border border-slate-200 text-xs">
+                    <span className="font-semibold text-slate-800">
+                      {doc.name} <span className="text-slate-500 font-normal">({DOCTOR_TAGS[doc.tag.toUpperCase()]?.label || doc.tag})</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Tem certeza que deseja descadastrar o médico ${doc.name}?`)) {
+                          onDeleteDoctor(doc.id);
+                        }
+                      }}
+                      className="text-rose-500 hover:text-rose-700 p-1 hover:bg-rose-50 rounded transition-colors flex items-center gap-1 font-semibold"
+                      title="Remover médico"
+                    >
+                      <Trash2 size={14} /> Excluir
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Footer */}
         <div className="bg-slate-50 border-t border-slate-200 px-5 py-3 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors shadow-2xs"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg transition-colors shadow-2xs cursor-pointer"
           >
             Concluir Escala do Dia
           </button>

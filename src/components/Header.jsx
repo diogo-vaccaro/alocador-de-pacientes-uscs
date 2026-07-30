@@ -11,7 +11,8 @@ import {
   Building2,
   Table,
   LayoutGrid,
-  GitBranch
+  GitBranch,
+  History
 } from 'lucide-react';
 
 export default function Header({ 
@@ -27,6 +28,7 @@ export default function Header({
   onRunAllocation, 
   onOpenPrintView, 
   onOpenExplainModal,
+  onOpenHistoryModal,
   onResetDemo,
   syncStatus
 }) {
@@ -78,7 +80,7 @@ export default function Header({
 
           <button
             onClick={() => setIsWeekend(!isWeekend)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border shadow-2xs text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border shadow-2xs text-sm font-medium transition-colors cursor-pointer ${
               isWeekend
                 ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
                 : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
@@ -92,7 +94,7 @@ export default function Header({
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                 viewMode === 'table' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Visualização em Tabela (Padrão)"
@@ -102,7 +104,7 @@ export default function Header({
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                 viewMode === 'grid' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Visualização em Grade (Cards)"
@@ -114,7 +116,7 @@ export default function Header({
 
           <button
             onClick={onOpenDoctorManager}
-            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors text-sm font-medium cursor-pointer"
           >
             <Users size={16} className="text-blue-600" />
             Escala ({activeDoctorsCount} Vagas)
@@ -125,7 +127,7 @@ export default function Header({
         <div className="flex flex-wrap items-center gap-2 justify-end">
           <button
             onClick={onOpenImportModal}
-            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors text-sm font-medium cursor-pointer"
           >
             <Upload size={16} className="text-blue-600" />
             Importar Censo
@@ -133,15 +135,24 @@ export default function Header({
 
           <button
             onClick={onRunAllocation}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-2xs font-medium transition-colors text-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-2xs font-medium transition-colors text-sm cursor-pointer"
           >
             <Sparkles size={16} />
             Distribuir Leitos
           </button>
 
           <button
+            onClick={onOpenHistoryModal}
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors text-sm font-medium cursor-pointer"
+            title="Ver Histórico Completo de Alocações"
+          >
+            <History size={16} className="text-blue-600" />
+            Histórico
+          </button>
+
+          <button
             onClick={onOpenPrintView}
-            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors text-sm font-medium cursor-pointer"
             title="Folha de Censo para Impressão / PDF"
           >
             <Printer size={16} />
@@ -150,7 +161,7 @@ export default function Header({
 
           <button
             onClick={onOpenExplainModal}
-            className="p-2 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors"
+            className="p-2 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer"
             title="Ver Lógica de Alocação"
           >
             <Info size={16} />
@@ -158,7 +169,7 @@ export default function Header({
 
           <button
             onClick={onResetDemo}
-            className="p-2 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-amber-600 transition-colors"
+            className="p-2 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-2xs hover:bg-slate-50 hover:text-amber-600 transition-colors cursor-pointer"
             title="Restaurar Censo Padrão da Foto"
           >
             <RotateCcw size={16} />
