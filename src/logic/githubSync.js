@@ -6,17 +6,22 @@
 const REPO_OWNER = 'diogo-vaccaro';
 const REPO_NAME = 'alocador-de-pacientes-uscs';
 
+const isLocalhost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 /**
- * Busca o censo do dia diretamente via API Vercel ou Raw GitHub CDN
+ * Busca o censo do dia via API Serverless Vercel ou Raw GitHub CDN
  */
 export async function fetchCensoFromGitHub(dateKey) {
   try {
-    // Tentar via API interna Vercel em primeiro lugar
-    const apiRes = await fetch(`/api/censo?date=${dateKey}`);
-    if (apiRes.ok) {
-      const data = await apiRes.json();
-      if (data && data.success && data.payload) {
-        return data.payload;
+    // No ambiente local de dev (Vite), não chama /api/censo do Vercel para evitar 404/source code
+    if (!isLocalhost) {
+      const apiRes = await fetch(`/api/censo?date=${dateKey}`);
+      if (apiRes.ok) {
+        const data = await apiRes.json();
+        if (data && data.success && data.payload) {
+          return data.payload;
+        }
       }
     }
 
@@ -28,15 +33,17 @@ export async function fetchCensoFromGitHub(dateKey) {
       return payload;
     }
   } catch (err) {
-    console.warn('Erro ao buscar censo no GitHub:', err.message);
+    // Silencioso em caso de arquivo ainda não criado no GitHub
   }
   return null;
 }
 
 /**
- * Envia o censo atualizado para ser commitado no repositório GitHub
+ * Envia o censo atualizado para ser commitado no repositório GitHub via API Serverless
  */
 export async function saveCensoToGitHub(dateKey, payload) {
+  if (isLocalhost) return true; // Em dev local salva no localStorage
+
   try {
     const res = await fetch(`/api/censo?date=${dateKey}`, {
       method: 'POST',
@@ -45,15 +52,12 @@ export async function saveCensoToGitHub(dateKey, payload) {
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      console.warn('Alerta de salvamento no GitHub:', err.error);
       return false;
     }
 
     const data = await res.json();
     return data.success;
   } catch (err) {
-    console.error('Falha ao enviar censo para GitHub:', err);
     return false;
   }
 }
@@ -61,7 +65,7 @@ export async function saveCensoToGitHub(dateKey, payload) {
 /**
  * Inicia a escuta/polling automático a cada N segundos para sincronizar computadores
  */
-export function startGitHubAutoSync(dateKey, onRemoteUpdate, intervalMs = 4000) {
+export function startGitHubAutoSync(dateKey, onRemoteUpdate, intervalMs = 5000) {
   let lastJsonStr = '';
 
   const checkRemote = async () => {
@@ -75,11 +79,11 @@ export function startGitHubAutoSync(dateKey, onRemoteUpdate, intervalMs = 4000) 
     }
   };
 
-  // Checagem inicial imediata
-  checkRemote();
+  if (!isLocalhost) {
+    checkRemote();
+    const timer = setInterval(checkRemote, intervalMs);
+    return () => clearInterval(timer);
+  }
 
-  // Polling automático
-  const timer = setInterval(checkRemote, intervalMs);
-
-  return () => clearInterval(timer);
+  return () => {};
 }
