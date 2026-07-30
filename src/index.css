@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@layer utilities {
+  @keyframes pulseSubtle {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.02); opacity: 0.95; }
+  }
+  .animate-pulse-subtle {
+    animation: pulseSubtle 3s ease-in-out infinite;
+  }
+}
+
+/* Estilos de Impressão Rígidos — Oculta o #root para garantir 1 ÚNICA PÁGINA */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 6mm;
+  }
+
+  /* 1. Desativar completamente o app de fundo (#root) durante a impressão */
+  #root {
+    display: none !important;
+  }
+
+  /* 2. Ocultar botões e controles de tela */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 3. Reset do Body e HTML */
+  html, body {
+    background-color: white !important;
+    color: black !important;
+    font-family: Arial, sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* 4. O container do portal do modal flui no topo do papel sem overlays */
+  .no-print-bg,
+  .print-modal-container {
+    position: static !important;
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* 5. A folha oficial de censo é posicionada como bloco relativo único */
+  #printable-censo {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 6px !important;
+    box-sizing: border-box !important;
+    border: 2px solid black !important;
+    page-break-inside: avoid !important;
+  }
+}
